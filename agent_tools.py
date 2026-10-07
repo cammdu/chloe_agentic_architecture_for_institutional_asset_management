@@ -2868,7 +2868,6 @@ def fetch_signals(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -4316,7 +4315,7 @@ def run_cma_method_5(
 
     .. math::
 
-        c_5 = 1 - \\text{CAPE\_percentile}
+        c_5 = 1 - \\text{CAPE\\_percentile}
 
     where ``CAPE_percentile`` is the current CAPE's percentile rank in the
     historical CAPE distribution. A lower CAPE (cheaper market) implies a
@@ -5853,7 +5852,6 @@ def classify_dispersion(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -8277,7 +8275,6 @@ def write_cma_json(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -10644,7 +10641,6 @@ def write_cro_report_json(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -12905,7 +12901,6 @@ def confirm_no_revision(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -15347,7 +15342,6 @@ def write_proposed_method_spec_json(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging
@@ -17790,7 +17784,6 @@ def write_proposed_method_spec_json(
 # All arithmetic conventions are frozen per STUDY_CONFIG["DATA_CONVENTIONS"].
 # =============================================================================
 
-from __future__ import annotations
 
 import json
 import logging

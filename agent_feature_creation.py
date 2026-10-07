@@ -313,7 +313,7 @@ def aggregate_daily_factors_to_monthly(
     Aggregates daily factor returns and the risk-free rate into monthly
     geometric returns.
 
-    Equation: R_{monthly} = \prod_{d=1}^{D} (1 + r_{daily, d}) - 1
+    Equation: R_{monthly} = \\prod_{d=1}^{D} (1 + r_{daily, d}) - 1
     If is_rf_annualized is True, the daily rf is first de-annualized:
     rf_daily = rf_ann / 365.
 
