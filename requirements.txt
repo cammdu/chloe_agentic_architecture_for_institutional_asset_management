@@ -195,6 +195,19 @@ openai>=2.44.0,<3.0.0
 
 
 # ==============================================================================
+# SECTION 6b — ANTHROPIC SDK (CLAUDE LLM BACK-END)
+# ==============================================================================
+# Rationale: agent_claude_adapter.py sends the pipeline's LLM calls to Claude
+# when config.yaml sets INFRASTRUCTURE.LLM_PROVIDER.provider to "anthropic".
+# Floor >=1.11.0 provides output_config.effort and top-level cache_control
+# on messages.stream().
+# ------------------------------------------------------------------------------
+
+# Anthropic Python client library (Claude Messages API).
+anthropic>=1.11.0,<2.0.0
+
+
+# ==============================================================================
 # SECTION 7 — HTTP CLIENT & API DATA FETCHING
 # ==============================================================================
 # Rationale: fetch_macro_snapshot, fetch_signals, and fetch_historical_stats

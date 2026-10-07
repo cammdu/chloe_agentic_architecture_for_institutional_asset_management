@@ -132,6 +132,20 @@ INFRASTRUCTURE:
     _INAPPLICABLE_max_tokens: "USE_max_output_tokens_INSTEAD"
 
   # ----------------------------------------------------------------------------
+  # 1.2b LLM PROVIDER (which company's model answers the LLM calls)
+  # ----------------------------------------------------------------------------
+  # "anthropic" sends every LLM call to Claude through agent_claude_adapter.py;
+  # "openai" uses the original GPT-5.2 settings in LLM_INVOCATION_POLICY.
+  # REASONING_EFFORT_SCHEDULE below applies to both. Claude's thinking counts
+  # towards its token limit, so each budget is raised to at least
+  # anthropic_min_max_tokens (only tokens actually generated are billed).
+  LLM_PROVIDER:
+    provider: "anthropic"
+    anthropic_model: "claude-opus-5-5"            # or "claude-sonnet-5-5" (about half the price)
+    anthropic_api_key_env_var: "ANTHROPIC_API_KEY" # loaded from .env; never hardcode
+    anthropic_min_max_tokens: 32000
+
+  # ----------------------------------------------------------------------------
   # 1.3 REASONING EFFORT SCHEDULE (frozen; Task 8 Step 2)
   # UNSPECIFIED IN MANUSCRIPT — frozen here as implementation contract.
   # ----------------------------------------------------------------------------
