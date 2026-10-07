@@ -132,21 +132,18 @@ scikit-learn>=1.4.0,<2.0.0
 #     OAI_CONFIG_LIST JSON file, keeping API keys out of source code.
 #
 # IMPORTANT PACKAGE NAME NOTE:
-#   The PyPI package is `pyautogen`; the importable namespace is `autogen`.
-#   Do NOT install `autogen` (an unrelated package) or `autogen-agentchat`
-#   (the AutoGen 0.4+ rewrite with a different API surface) unless you have
-#   migrated the codebase to the AG2 / 0.4.x ConversableAgent signature.
+#   `pyautogen` 0.2.x is no longer installable from PyPI under that range, and
+#   newer `pyautogen` / `ag2` 1.x releases do not provide the `autogen`
+#   module. `ag2` 0.14 (the AG2 continuation of AutoGen 0.2) does, and keeps
+#   the ConversableAgent / register_function / GroupChatManager API used here.
+#   Do NOT install `autogen-agentchat` (the AutoGen 0.4+ rewrite with a
+#   different API surface).
 #
-# Version floor >=0.2.38 is the earliest release that:
-#   (a) ships GroupChat.select_speaker_auto_verbose,
-#   (b) supports tool_calls in assistant agent system messages, and
-#   (c) fixes the nested-chat recursion-depth CVE (CVE-2024-XXXXX).
-# The [openai] extra pulls in openai>=1.3.0 (required for the /v1/chat/
-# completions JSON-mode endpoint) and tiktoken for token counting.
+# The [openai] extra requires openai>=2.44 (see SECTION 6).
 # ------------------------------------------------------------------------------
 
-# Multi-agent conversation and orchestration framework (AutoGen 0.2.x stable).
-pyautogen>=0.2.38,<0.3.0
+# Multi-agent conversation and orchestration framework (AG2, AutoGen 0.2 API).
+ag2[openai]==0.14.0
 
 
 # ==============================================================================
@@ -184,7 +181,7 @@ jsonschema[format-nongpl]>=4.21.0,<5.0.0
 # and of any agent that invokes the /v1/chat/completions endpoint with
 # structured JSON-mode output.
 #
-# Pinned floor >=1.30.0 guarantees:
+# Floor >=2.44.0 is required by ag2[openai]==0.14.0, and also guarantees:
 #   • The `response_format={"type":"json_object"}` parameter (used for all
 #     JSON-schema-validated LLM outputs in the CMA Judge and CIO agent).
 #   • The Assistants v2 thread-management API (used by the Meta-Agent's
@@ -193,8 +190,8 @@ jsonschema[format-nongpl]>=4.21.0,<5.0.0
 #     stay within context-window limits.
 # ------------------------------------------------------------------------------
 
-# OpenAI Python client library; required runtime dependency of pyautogen.
-openai>=1.30.0,<2.0.0
+# OpenAI Python client library; required runtime dependency of ag2.
+openai>=2.44.0,<3.0.0
 
 
 # ==============================================================================
