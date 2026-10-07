@@ -753,6 +753,9 @@ REGISTRIES:
     fi_extension_tools:
       run_fi_cma_builder: "{SCRIPTS_DIR}/ac/cma_methods/fi_cma_builder.py"
       write_cma_json: "{SCRIPTS_DIR}/ac/write_cma_json.py"
+    cash_extension_tools:
+      fetch_cash_yield_proxy: "{SCRIPTS_DIR}/ac/fetch_cash_yield_proxy.py"
+      write_analysis_md: "{SCRIPTS_DIR}/ac/write_analysis_md.py"
 
     # Per-asset-class configuration:
     asset_class_configs:
@@ -2140,6 +2143,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - pc_weights.json: {PC_WEIGHTS_OUTPUT_PATH}
       - pc_report.md: {PC_REPORT_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   PC_RESEARCHER_AGENT:
     provenance: "INFERRED — PC researcher template; not verbatim"
@@ -2177,6 +2181,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - proposed_method.md: {PROPOSED_METHOD_OUTPUT_PATH}
       - proposed_method_spec.json: {PROPOSED_METHOD_SPEC_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   PC_ADVERSARIAL_DIVERSIFIER_AGENT:
     provenance: "INFERRED — adversarial PC template; not verbatim"
@@ -2233,6 +2238,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - pc_weights.json: {PC_WEIGHTS_OUTPUT_PATH}
       - pc_report.md: {PC_REPORT_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   CRO_AGENT_RISK_REPORT:
     provenance: "INFERRED — CRO narrative template; not verbatim"
@@ -2296,6 +2302,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - cro_report.json: {CRO_REPORT_OUTPUT_PATH}
       - cro_narrative.md: {CRO_NARRATIVE_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   PEER_REVIEW:
     provenance: "INFERRED — peer review template; not verbatim"
@@ -2389,6 +2396,7 @@ PROMPT_TEMPLATES:
 
       OUTPUT CONTRACT:
       - vote_{agent_slug}.json: {VOTE_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   TOP5_REVISION:
     provenance: "INFERRED — top-5 revision template; not verbatim"
@@ -2444,6 +2452,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - revised_pc_weights.json: {REVISED_WEIGHTS_OUTPUT_PATH}
       - revision_memo.md: {REVISION_MEMO_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   CIO_AGENT_SELECTION:
     provenance: "INFERRED — CIO selection template; not verbatim"
@@ -2536,6 +2545,7 @@ PROMPT_TEMPLATES:
       OUTPUT CONTRACT:
       - final_weights.json: {FINAL_WEIGHTS_OUTPUT_PATH}
       - board_memo.md: {BOARD_MEMO_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
   CIO_BOARD_MEMO:
     provenance: "INFERRED — board memo structure; not verbatim"
@@ -2568,6 +2578,7 @@ PROMPT_TEMPLATES:
 
       OUTPUT:
       - board_memo.md: {BOARD_MEMO_OUTPUT_PATH}
+      - Do not perform arithmetic in the LLM; call Python script tools for all computation.
 
 # ==============================================================================
 # 7. METHODOLOGICAL PARAMETERS
@@ -2604,6 +2615,12 @@ METHODOLOGY_PARAMS:
     financial_conditions:
       financial_conditions_index: 0.6
       financial_conditions_mom: 0.4
+  # Maps MACRO_SCORING_WEIGHTS dimension keys to the score keys used in MACRO_REGIME_THRESHOLDS (Task 20):
+  MACRO_DIMENSION_KEY_MAP:
+    growth: "s_g"
+    inflation: "s_pi"
+    monetary_policy: "s_pol"
+    financial_conditions: "s_fc"
   # Frozen regime thresholds (UNSPECIFIED IN MANUSCRIPT):
   MACRO_REGIME_THRESHOLDS:
     Expansion:

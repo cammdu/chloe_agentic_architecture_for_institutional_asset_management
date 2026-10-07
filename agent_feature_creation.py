@@ -107,6 +107,8 @@ def compute_cpi_mom(
     # Merge the computed series into the macro dataframe using a left join
     # on the index to prevent data leakage or row duplication
     # ------------------------------------------------------------------
+    # Replace any pre-existing 'cpi_mom' column (it is also part of the raw macro schema)
+    df_macro_out = df_macro_out.drop(columns=['cpi_mom'], errors='ignore')
     df_macro_out = df_macro_out.join(cpi_mom_series, how='left')
 
     logger.info("Successfully computed and merged 'cpi_mom' into macro dataset.")
@@ -207,8 +209,10 @@ def compute_financial_conditions_mom(df_macro_raw: pd.DataFrame) -> pd.DataFrame
     # ------------------------------------------------------------------
     # Input validation: required columns
     # ------------------------------------------------------------------
-    if 'fci_raw_score' not in df_macro_raw.columns:
-        raise ValueError("df_macro_raw must contain the column 'fci_raw_score'.")
+    # config.yaml names this column 'financial_conditions_index'; 'fci_raw_score' is the legacy name
+    fci_col: str = 'financial_conditions_index' if 'financial_conditions_index' in df_macro_raw.columns else 'fci_raw_score'
+    if fci_col not in df_macro_raw.columns:
+        raise ValueError("df_macro_raw must contain the column 'financial_conditions_index' or 'fci_raw_score'.")
 
     # ------------------------------------------------------------------
     # Create a deep copy to preserve immutability
@@ -223,7 +227,7 @@ def compute_financial_conditions_mom(df_macro_raw: pd.DataFrame) -> pd.DataFrame
     # ------------------------------------------------------------------
     # Compute the 1-period discrete difference for the FCI score
     # ------------------------------------------------------------------
-    df_out['financial_conditions_mom'] = df_out['fci_raw_score'].diff(periods=1)
+    df_out['financial_conditions_mom'] = df_out[fci_col].diff(periods=1)
 
     logger.info("Successfully computed 'financial_conditions_mom'.")
 
