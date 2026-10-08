@@ -22,7 +22,9 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
+import os
 import re
 import time
 import zipfile
@@ -39,6 +41,8 @@ import requests
 logger: logging.Logger = logging.getLogger(__name__)
 
 FRED_CSV_URL: str = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+# Official FRED API, used when FRED_API_KEY is set (free key: https://fred.stlouisfed.org/docs/api/api_key.html)
+FRED_API_URL: str = "https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&file_type=json"
 FRENCH_DAILY_URL: str = (
     "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
 )
@@ -92,13 +96,9 @@ class FreeDataSources:
         self.cache_dir = Path(cache_dir)
         self.max_age_seconds = max_age_hours * 3600
         self.session = requests.Session()
-        # FRED can stall requests that don't look like a browser, so send browser-like headers
-        self.session.headers.update({
-            "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
-                           "(KHTML, like Gecko) Version/18.0 Safari/605.1.15"),
-            "Accept": "text/csv,application/octet-stream,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-        })
+        self.session.headers["User-Agent"] = "self-driving-portfolio research (python-requests)"
+        # Read from the environment (.env) so the key never appears in the notebook
+        self.fred_api_key: Optional[str] = os.environ.get("FRED_API_KEY") or None
 
     def _cached(self, name: str, fetch: Callable[[], pd.DataFrame]) -> pd.DataFrame:
         path = self.cache_dir / f"{name}.csv"
@@ -109,28 +109,35 @@ class FreeDataSources:
         df.to_csv(path)
         return df
 
-    def _get(self, url: str, attempts: int = 4) -> bytes:
-        # FRED in particular is sometimes slow or briefly unavailable: retry with growing pauses
+    def _get(self, url: str, params: Optional[Dict[str, str]] = None, attempts: int = 4) -> bytes:
+        # Sites are sometimes slow or briefly unavailable: retry with growing pauses.
+        # Secrets go in params, which are never logged or shown in error messages.
+        retry_codes = (429, 500, 502, 503, 504)
         for attempt in range(1, attempts + 1):
             try:
-                response = self.session.get(url, timeout=(15, 120))
-                if response.status_code in (429, 500, 502, 503, 504) and attempt < attempts:
-                    raise requests.HTTPError(f"HTTP {response.status_code}", response=response)
-                response.raise_for_status()
-                return response.content
-            except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as exc:
-                retryable = not isinstance(exc, requests.HTTPError) or (
-                    exc.response is not None and exc.response.status_code in (429, 500, 502, 503, 504))
-                if not retryable or attempt == attempts:
-                    raise
-                pause = 10 * attempt
-                logger.warning("Download failed (%s); retrying in %d s (attempt %d of %d): %s",
-                               type(exc).__name__, pause, attempt + 1, attempts, url)
-                time.sleep(pause)
+                response = self.session.get(url, params=params, timeout=(15, 120))
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt == attempts:
+                    raise RuntimeError(f"Could not download {url} after {attempts} attempts ({type(exc).__name__}).") from None
+                reason = type(exc).__name__
+            else:
+                if response.ok:
+                    return response.content
+                if response.status_code not in retry_codes or attempt == attempts:
+                    raise RuntimeError(f"Download of {url} failed with HTTP {response.status_code}.")
+                reason = f"HTTP {response.status_code}"
+            pause = 10 * attempt
+            logger.warning("Download failed (%s); retrying in %d s (attempt %d of %d): %s",
+                           reason, pause, attempt + 1, attempts, url)
+            time.sleep(pause)
         raise RuntimeError("unreachable")
 
     def fred(self, series_id: str) -> pd.Series:
         def fetch() -> pd.DataFrame:
+            if self.fred_api_key:
+                url = FRED_API_URL.format(series_id=series_id)
+                content = self._get(url, params={"api_key": self.fred_api_key})
+                return parse_fred_api_json(content, series_id).to_frame()
             return parse_fred_csv(self._get(FRED_CSV_URL.format(series_id=series_id)), series_id).to_frame()
         return self._cached(f"fred_{series_id}", fetch).iloc[:, 0]
 
@@ -167,6 +174,18 @@ def parse_fred_csv(content: bytes, series_id: str) -> pd.Series:
     series.index = pd.to_datetime(df[date_col])
     series.index.name = "date"
     series.name = series_id
+    return series.dropna()
+
+
+def parse_fred_api_json(content: bytes, series_id: str) -> pd.Series:
+    """FRED API series/observations JSON: {"observations": [{"date": ..., "value": ...}]}; '.' = missing."""
+    observations = json.loads(content)["observations"]
+    series = pd.Series(
+        pd.to_numeric([o["value"] for o in observations], errors="coerce"),
+        index=pd.to_datetime([o["date"] for o in observations]),
+        name=series_id,
+    )
+    series.index.name = "date"
     return series.dropna()
 
 
