@@ -22,7 +22,10 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional
 
+import anthropic
 from openai import APIError, Client, RateLimitError
+
+from agent_claude_adapter import ClaudeBudgetExceeded, ClaudeChatAdapter, build_claude_adapter
 
 # ---------------------------------------------------------------------------
 # Module-level logger
@@ -125,6 +128,32 @@ def initialize_openai_client(api_key_env_var: str = "OPENAI_API_KEY") -> Client:
 
     # Return the authenticated client to the caller for dependency injection
     return client
+
+
+# =============================================================================
+# CALLABLE 2b: initialize_llm_client
+# =============================================================================
+
+def initialize_llm_client(config: Any) -> Any:
+    """
+    Returns the LLM client named by STUDY_CONFIG['INFRASTRUCTURE']['LLM_PROVIDER'].
+
+    provider 'anthropic' returns a ClaudeChatAdapter (reads ANTHROPIC_API_KEY);
+    provider 'openai' (or no LLM_PROVIDER block) returns an OpenAI Client
+    (reads the env var named in LLM_INVOCATION_POLICY). Both are accepted by
+    invoke_and_extract_agent_response.
+    """
+    infrastructure = config["INFRASTRUCTURE"]
+    provider_cfg = infrastructure.get("LLM_PROVIDER", {})
+    if provider_cfg.get("provider", "openai") == "anthropic":
+        adapter = build_claude_adapter(config)
+        # Touch the client now so a missing key fails before the pipeline starts
+        _ = adapter.client
+        logger.info("Successfully initialized Claude client for model '%s'", adapter.model)
+        return adapter
+    return initialize_openai_client(
+        infrastructure["LLM_INVOCATION_POLICY"].get("api_key_env_var", "OPENAI_API_KEY")
+    )
 
 
 # =============================================================================
@@ -250,6 +279,10 @@ def invoke_and_extract_agent_response(
     RuntimeError
         If the API call fails due to rate limits or server errors.
     """
+    # Route to Claude when the pipeline was given a ClaudeChatAdapter
+    if isinstance(client, ClaudeChatAdapter):
+        return _invoke_claude(client, config, messages, tools)
+
     # Begin the try block to catch and handle specific network and API exceptions
     try:
         # Execute the synchronous API call to the chat completions endpoint
@@ -314,3 +347,40 @@ def invoke_and_extract_agent_response(
             f"Unexpected error during LLM invocation and extraction. "
             f"Details: {str(e)}"
         ) from e
+
+
+def _invoke_claude(
+    adapter: ClaudeChatAdapter,
+    config: AgentLLMConfig,
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict[str, Any]]],
+) -> ParsedLLMResponse:
+    """Claude branch of invoke_and_extract_agent_response (same inputs and outputs)."""
+    try:
+        response = adapter.complete(
+            messages=messages,
+            tools=tools,
+            effort=config.reasoning_effort,
+            max_tokens=config.max_completion_tokens,
+        )
+    except ClaudeBudgetExceeded:
+        # Let the spend cap stop the pipeline with its own message
+        raise
+    except anthropic.RateLimitError as rle:
+        logger.error("RateLimitError encountered during invocation of %s", adapter.model)
+        raise RuntimeError(
+            f"API Rate Limit Exceeded during invocation of {adapter.model}. Details: {str(rle)}"
+        ) from rle
+    except anthropic.APIError as apie:
+        logger.error("APIError encountered during invocation of %s", adapter.model)
+        raise RuntimeError(
+            f"Anthropic API Error encountered during invocation of {adapter.model}. Details: {str(apie)}"
+        ) from apie
+    except Exception as e:
+        logger.error("Unexpected error during invocation of %s", adapter.model)
+        raise RuntimeError(
+            f"Unexpected error during LLM invocation and extraction. Details: {str(e)}"
+        ) from e
+
+    message_obj = response.choices[0].message
+    return ParsedLLMResponse(content=message_obj.content, tool_calls=message_obj.tool_calls)
