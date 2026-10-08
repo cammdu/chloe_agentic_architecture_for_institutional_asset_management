@@ -51,11 +51,16 @@ SHILLER_URL: str = "https://img1.wsimg.com/blobby/go/e5e77e0b-59d1-44d9-ab25-476
 
 # Yahoo Finance symbol for each pipeline ticker. Index tickers without a free
 # total return series are replaced by the matching ETF.
-YAHOO_SYMBOLS: Dict[str, str] = {
-    "SPTR": "^SP500TR",  # S&P 500 total return index
-    "RTY": "IWM",        # Russell 2000 ETF
-    "MXEA": "EFA",       # MSCI EAFE ETF
-    "MXEF": "EEM",       # MSCI Emerging Markets ETF
+# Yahoo symbols to try for each universe ticker, in order; the first one with data is used.
+# Tickers not listed are looked up as they are.
+YAHOO_SYMBOLS: Dict[str, List[str]] = {
+    "SPTR": ["^SP500TR"],         # S&P 500 total return index
+    "RTY": ["IWM"],               # Russell 2000 ETF
+    "SPVU": ["SPYV", "IVE"],      # SPVU has no Yahoo data; S&P 500 Value ETFs instead
+    "MXEA": ["EFA"],              # MSCI EAFE ETF
+    "MXEF": ["EEM"],              # MSCI Emerging Markets ETF
+    "PICB": ["PICB", "IBND"],     # International corporate bonds
+    "PDBC": ["PDBC", "DBC"],      # Diversified commodities
 }
 
 # 60/40 benchmark legs: S&P 500 total return and a US aggregate bond index fund
@@ -144,8 +149,14 @@ class FreeDataSources:
     def yahoo(self, symbol: str, start: str) -> pd.DataFrame:
         def fetch() -> pd.DataFrame:
             import yfinance as yf
-            df = yf.download(symbol, start=start, auto_adjust=False, actions=False,
-                             progress=False, multi_level_index=False)
+            df = None
+            for attempt in range(2):  # an empty result can also mean Yahoo is briefly rate limiting
+                if attempt:
+                    time.sleep(5)
+                df = yf.download(symbol, start=start, auto_adjust=False, actions=False,
+                                 progress=False, multi_level_index=False)
+                if df is not None and not df.empty:
+                    break
             if df is None or df.empty:
                 raise RuntimeError(f"Yahoo Finance returned no data for {symbol}.")
             if "Adj Close" not in df.columns:
@@ -293,6 +304,20 @@ def _read_manual_inputs(path: Path) -> Dict[str, pd.DataFrame]:
 # Assembly
 # =============================================================================
 
+def _yahoo_first_available(sources: FreeDataSources, ticker: str, start_date: str) -> pd.DataFrame:
+    candidates = YAHOO_SYMBOLS.get(ticker, [ticker])
+    for symbol in candidates:
+        try:
+            px = sources.yahoo(symbol, start_date)
+        except RuntimeError as exc:
+            logger.warning("%s", exc)
+            continue
+        if symbol != candidates[0]:
+            logger.warning("Using %s for %s because %s has no Yahoo Finance data.", symbol, ticker, candidates[0])
+        return px
+    raise RuntimeError(f"Yahoo Finance returned no data for {ticker} (tried {', '.join(candidates)}).")
+
+
 def _month_end_last(series: pd.Series | pd.DataFrame) -> pd.Series | pd.DataFrame:
     return series.resample("ME").last()
 
@@ -404,7 +429,7 @@ def build_free_pipeline_data(
 
     monthly: Dict[str, Dict[str, pd.Series]] = {f: {} for f in ("tri", "open", "high", "low", "close", "volume", "rsi")}
     for ticker in tickers:
-        px = sources.yahoo(YAHOO_SYMBOLS.get(ticker, ticker), start_date)
+        px = _yahoo_first_available(sources, ticker, start_date)
         m = px.resample("ME")
         monthly["tri"][ticker] = m["Adj Close"].last()
         monthly["open"][ticker] = m["Open"].first()
