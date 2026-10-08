@@ -92,7 +92,13 @@ class FreeDataSources:
         self.cache_dir = Path(cache_dir)
         self.max_age_seconds = max_age_hours * 3600
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "Mozilla/5.0 (self-driving-portfolio research)"
+        # FRED can stall requests that don't look like a browser, so send browser-like headers
+        self.session.headers.update({
+            "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+                           "(KHTML, like Gecko) Version/18.0 Safari/605.1.15"),
+            "Accept": "text/csv,application/octet-stream,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
 
     def _cached(self, name: str, fetch: Callable[[], pd.DataFrame]) -> pd.DataFrame:
         path = self.cache_dir / f"{name}.csv"
@@ -103,10 +109,25 @@ class FreeDataSources:
         df.to_csv(path)
         return df
 
-    def _get(self, url: str) -> bytes:
-        response = self.session.get(url, timeout=60)
-        response.raise_for_status()
-        return response.content
+    def _get(self, url: str, attempts: int = 4) -> bytes:
+        # FRED in particular is sometimes slow or briefly unavailable: retry with growing pauses
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self.session.get(url, timeout=(15, 120))
+                if response.status_code in (429, 500, 502, 503, 504) and attempt < attempts:
+                    raise requests.HTTPError(f"HTTP {response.status_code}", response=response)
+                response.raise_for_status()
+                return response.content
+            except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as exc:
+                retryable = not isinstance(exc, requests.HTTPError) or (
+                    exc.response is not None and exc.response.status_code in (429, 500, 502, 503, 504))
+                if not retryable or attempt == attempts:
+                    raise
+                pause = 10 * attempt
+                logger.warning("Download failed (%s); retrying in %d s (attempt %d of %d): %s",
+                               type(exc).__name__, pause, attempt + 1, attempts, url)
+                time.sleep(pause)
+        raise RuntimeError("unreachable")
 
     def fred(self, series_id: str) -> pd.Series:
         def fetch() -> pd.DataFrame:
