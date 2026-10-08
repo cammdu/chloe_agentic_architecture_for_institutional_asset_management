@@ -557,7 +557,9 @@ RAW_DATA_SCHEMAS:
       asset_class: "object"
       survey_expected_return: "float64"  # In decimals (e.g. 0.07 = 7%)
     validation:
-      coverage_through: "AS_OF_DATE"
+      # No coverage check: surveys are published once or twice a year, and
+      # Task 21 discounts the latest survey by its age.
+      coverage_through: null
 
   FIXED_INCOME_CURVE_AND_SPREADS:
     dataframe_name: "df_fixed_income_curves_spreads_raw"
