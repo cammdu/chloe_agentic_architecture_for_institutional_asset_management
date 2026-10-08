@@ -2711,6 +2711,31 @@ METHODOLOGY_PARAMS:
     tau: 0.05   # BL scaling parameter placeholder
   # FI CMA formula (UNSPECIFIED IN MANUSCRIPT; frozen):
   FI_CMA_FORMULA: "yield + roll_down + spread_carry - expected_default_loss"
+  # Per-class inputs for the fixed income CMA builder (Tasks 18, 23).
+  # UNSPECIFIED IN MANUSCRIPT: assumed values. target_tenor approximates each
+  # fund's maturity profile (years); spread_column names a column of the
+  # fixed income curves/spreads data; probability_of_default and
+  # loss_given_default are annual decimals.
+  FI_ASSUMPTIONS:
+    Short-Term Treasuries:         {target_tenor: 2.0}
+    Intermediate Treasuries:       {target_tenor: 7.5}
+    Long-Term Treasuries:          {target_tenor: 25.0}
+    Investment-Grade Corporates:   {target_tenor: 10.0, spread_column: "ig_oas", probability_of_default: 0.002, loss_given_default: 0.6}
+    High-Yield Corporates:         {target_tenor: 4.0, spread_column: "hy_oas", probability_of_default: 0.035, loss_given_default: 0.6}
+    International Sovereign Bonds: {target_tenor: 8.0}
+    International Corporates:      {target_tenor: 7.0, spread_column: "ig_oas", probability_of_default: 0.002, loss_given_default: 0.6}
+    USD Emerging Market Debt:      {target_tenor: 12.0, spread_column: "em_spread", probability_of_default: 0.01, loss_given_default: 0.6}
+  # Credit spread duration (years) per fixed income class; 0 for government bonds.
+  # UNSPECIFIED IN MANUSCRIPT: approximate values for the reference ETFs.
+  DURATION_MAP:
+    Short-Term Treasuries: 0.0
+    Intermediate Treasuries: 0.0
+    Long-Term Treasuries: 0.0
+    Investment-Grade Corporates: 8.3
+    High-Yield Corporates: 3.3
+    International Sovereign Bonds: 0.0
+    International Corporates: 6.5
+    USD Emerging Market Debt: 7.0
   # Confidence scoring method for CMA methods (UNSPECIFIED IN MANUSCRIPT; frozen):
   CMA_CONFIDENCE_SCORING:
     method_1_historical_erp: "information_ratio_based"
