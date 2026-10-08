@@ -87,6 +87,11 @@ pandas>=2.2.0,<3.0.0
 # Parquet engine for pandas: the pipeline writes returns_matrix.parquet (Task 24).
 pyarrow>=15.0.0,<26.0.0
 
+# Old pyarrow-hotfix releases (0.6 and earlier) crash on pyarrow 21+ when
+# writing parquet; 0.7 skips itself on new pyarrow. Pinned in case another
+# package already installed an old copy.
+pyarrow-hotfix>=0.7
+
 
 # ==============================================================================
 # SECTION 3 — MACHINE LEARNING & COVARIANCE ESTIMATION
