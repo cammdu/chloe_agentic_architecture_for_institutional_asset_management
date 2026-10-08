@@ -5,3 +5,4 @@ venv/
 .env
 .ipynb_checkpoints/
 run_outputs/
+data/

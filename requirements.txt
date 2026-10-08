@@ -208,6 +208,25 @@ anthropic>=1.11.0,<2.0.0
 
 
 # ==============================================================================
+# SECTION 6c — FREE MARKET DATA DOWNLOADS
+# ==============================================================================
+# Rationale: agent_market_data.py builds the pipeline inputs from free public
+# sources when the notebook's USE_REAL_DATA switch is on.  yfinance reads
+# Yahoo Finance prices, xlrd reads Robert Shiller's ie_data.xls, and openpyxl
+# reads and writes data/manual_inputs.xlsx.
+# ------------------------------------------------------------------------------
+
+# Yahoo Finance daily prices (personal, non-commercial use).
+yfinance>=0.2.66,<2.0.0
+
+# Reader for legacy .xls workbooks (Shiller data).
+xlrd>=2.0.1,<3.0.0
+
+# Reader and writer for .xlsx workbooks (manual inputs).
+openpyxl>=3.1.0,<4.0.0
+
+
+# ==============================================================================
 # SECTION 7 — HTTP CLIENT & API DATA FETCHING
 # ==============================================================================
 # Rationale: fetch_macro_snapshot, fetch_signals, and fetch_historical_stats
