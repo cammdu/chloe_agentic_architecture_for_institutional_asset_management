@@ -89,6 +89,31 @@ FRED_SERIES: Dict[str, str] = {
 MANUAL_INPUTS_PATH: Path = Path("data/manual_inputs.xlsx")
 EQUITY_CATEGORY: str = "Equity"
 
+# Rough market size of each asset class in USD trillions, used only as the market-cap
+# weights of the Black-Litterman prior (Task 18). No free source publishes these, so
+# they are order-of-magnitude approximations, held constant over time. US Value and
+# US Growth overlap US Large Cap, as their indexes do.
+APPROX_MARKET_SIZE_USD_TRN: Dict[str, float] = {
+    "US Large Cap": 55.0,
+    "US Small Cap": 3.0,
+    "US Value": 20.0,
+    "US Growth": 35.0,
+    "International Developed": 25.0,
+    "Emerging Markets": 9.0,
+    "Short-Term Treasuries": 7.0,
+    "Intermediate Treasuries": 9.0,
+    "Long-Term Treasuries": 4.0,
+    "Investment-Grade Corporates": 10.0,
+    "High-Yield Corporates": 1.4,
+    "International Sovereign Bonds": 25.0,
+    "International Corporates": 6.0,
+    "USD Emerging Market Debt": 1.5,
+    "REITs": 1.4,
+    "Gold": 10.0,
+    "Commodities": 1.0,
+    "Cash": 6.0,
+}
+
 
 # =============================================================================
 # Downloading (with a same-day cache in data/cache)
@@ -480,7 +505,8 @@ def build_free_pipeline_data(
         "earnings_yield": stack(val["ey"]),
         "dividend_yield": stack(val["dy"]),
         "buyback_yield": stack(None),
-        "market_cap_usd": stack(None),
+        "market_cap_usd": stack(pd.DataFrame(
+            {t: APPROX_MARKET_SIZE_USD_TRN.get(asset_by_ticker[t], np.nan) * 1e12 for t in tickers}, index=dates)),
         "earnings_growth_forecast": stack(None),
         "valuation_change_assumption": stack(None),
     }, index=index)

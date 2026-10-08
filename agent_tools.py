@@ -32,6 +32,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+
+def _xs_ticker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Rows for one ticker, indexed by date only (drops investment_universe and any other level)."""
+    out = df.xs(ticker, level="ticker")
+    if isinstance(out.index, pd.MultiIndex):
+        out = out.droplevel([name for name in out.index.names if name != "date"])
+    return out
+
 # ---------------------------------------------------------------------------
 # Module-level logger — all tools emit structured log messages.
 # ---------------------------------------------------------------------------
@@ -2086,9 +2094,7 @@ def fetch_historical_stats(
     # ------------------------------------------------------------------
     try:
         # Slice the MultiIndex DataFrame to the target ticker
-        df_ticker: pd.DataFrame = df_total_return_raw.xs(
-            ticker, level="ticker"
-        )
+        df_ticker: pd.DataFrame = _xs_ticker(df_total_return_raw, ticker)
     except KeyError:
         raise ValueError(
             f"Ticker '{ticker}' (for asset_class='{asset_class}') not found "
@@ -2241,9 +2247,7 @@ def fetch_historical_stats(
         # Attempt to extract the other asset class's total return index
         try:
             # Slice the MultiIndex DataFrame to the other ticker
-            df_other: pd.DataFrame = df_total_return_raw.xs(
-                other_ticker, level="ticker"
-            )
+            df_other: pd.DataFrame = _xs_ticker(df_total_return_raw, other_ticker)
         except KeyError:
             # Log a warning if the ticker is not found and skip
             logger.warning(
@@ -2549,7 +2553,7 @@ def fetch_signals(
         """
         # Attempt to slice the MultiIndex DataFrame to the target ticker
         try:
-            df_tkr: pd.DataFrame = df.xs(tkr, level="ticker")
+            df_tkr: pd.DataFrame = _xs_ticker(df, tkr)
         except KeyError:
             # Ticker not found — return None to signal missing data
             logger.warning(
@@ -4098,9 +4102,7 @@ def run_cma_method_4(
     # ------------------------------------------------------------------
     try:
         # Extract rows for the target ticker using .xs() on the ticker level
-        df_ticker: pd.DataFrame = df_fundamentals_raw.xs(
-            ticker, level="ticker"
-        )
+        df_ticker: pd.DataFrame = _xs_ticker(df_fundamentals_raw, ticker)
     except KeyError:
         raise ValueError(
             f"Ticker '{ticker}' (for asset_class='{asset_class}') not found "
@@ -19788,9 +19790,7 @@ def build_returns_matrix(
 
         # Slice the MultiIndex DataFrame to the target ticker
         try:
-            df_ticker: pd.DataFrame = df_total_return_raw.xs(
-                ticker, level="ticker"
-            )
+            df_ticker: pd.DataFrame = _xs_ticker(df_total_return_raw, ticker)
         except KeyError:
             logger.warning(
                 "build_returns_matrix: Ticker '%s' not found for '%s'. "

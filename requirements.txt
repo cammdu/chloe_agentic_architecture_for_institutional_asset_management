@@ -84,6 +84,9 @@ scipy>=1.12.0,<2.0.0
 # Time-series alignment, tabular structuring, and DataFrame I/O layer.
 pandas>=2.2.0,<3.0.0
 
+# Parquet engine for pandas: the pipeline writes returns_matrix.parquet (Task 24).
+pyarrow>=15.0.0,<26.0.0
+
 
 # ==============================================================================
 # SECTION 3 — MACHINE LEARNING & COVARIANCE ESTIMATION
