@@ -3,6 +3,7 @@
 # The Self-Driving Portfolio: Agentic Architecture for Institutional Asset Management
 
 <!-- PROJECT SHIELDS -->
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cammdu/chloe_agentic_architecture_for_institutional_asset_management/blob/main/agentic_architecture_for_institutional_asset_management_draft.ipynb)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Source](https://img.shields.io/badge/Source-ArXiv%20Preprint-B31B1B.svg)](https://arxiv.org/abs/2604.02279)
@@ -136,6 +137,10 @@ The project is designed around a single, top-level user-facing interface functio
 -   Python 3.10+
 -   Core Python dependencies: `numpy`, `pandas`, `scipy`, `jsonschema`, `pyyaml`, `autogen`, `openai`.
 -   Optional ML dependencies (for NLP drift metrics): `scikit-learn`.
+
+## Run in Google Colab (no installation)
+
+Click the **Open in Colab** button at the top of this page, then run the notebook's first cell, **Set Up Colab**. It downloads this repository, installs the packages, and keeps your `manual_inputs.xlsx` and run results in a `My Drive/agentic_portfolio` folder. Add your API keys in Colab's **Secrets** panel (the key icon on the left) as `ANTHROPIC_API_KEY` and, optionally, `FRED_API_KEY`. The cells that cost money stay switched off until you turn them on.
 
 ## Installation
 
