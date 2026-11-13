@@ -1455,9 +1455,16 @@ def write_macro_view_json(
     rationale: str,
     artifact_dir: Path,
     as_of_date: Optional[str] = None,
+    regime_probabilities: Optional[Dict[str, float]] = None,
+    indicators: Optional[Dict[str, Any]] = None,
+    method: Optional[str] = None,
 ) -> str:
     """
     Serialise and persist the macro regime view to ``macro-view.json``.
+
+    ``regime_probabilities`` (one probability per regime), ``indicators``
+    (the published indicator readings) and ``method`` are optional and are
+    written when given (see ``agent_macro_regime.classify_regime_published``).
 
     This tool implements the artifact-writing step for the Macro Agent
     (Task 17, Step 3). The output file is the primary inter-agent artifact
@@ -1613,6 +1620,25 @@ def write_macro_view_json(
     if as_of_date is not None:
         # Include the as-of date string for audit trail
         output_dict["as_of_date"] = str(as_of_date)
+
+    # Optional: regime probabilities and published indicator readings
+    if regime_probabilities is not None:
+        unknown = set(regime_probabilities) - set(_VALID_REGIMES)
+        if unknown:
+            raise ValueError(f"regime_probabilities has unknown regimes: {sorted(unknown)}.")
+        total = sum(float(v) for v in regime_probabilities.values())
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"regime_probabilities must sum to 1, got {total:.6f}.")
+        output_dict["regime_probabilities"] = {
+            r: float(regime_probabilities.get(r, 0.0)) for r in _VALID_REGIMES
+        }
+    if indicators is not None:
+        output_dict["indicators"] = {
+            k: (None if v is None else (v if isinstance(v, (bool, int, str)) else float(v)))
+            for k, v in indicators.items()
+        }
+    if method is not None:
+        output_dict["method"] = str(method)
 
     # ------------------------------------------------------------------
     # Define the output file path

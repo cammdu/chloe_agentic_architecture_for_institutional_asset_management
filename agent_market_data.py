@@ -84,6 +84,11 @@ FRED_SERIES: Dict[str, str] = {
     "ig_oas": "BAMLC0A0CM",                # ICE BofA US corporate OAS, %
     "hy_oas": "BAMLH0A0HYM2",              # ICE BofA US high yield OAS, %
     "em_oas": "BAMLEMCBPIOAS",             # ICE BofA EM corporate plus OAS, %
+    # Published regime indicators (agent_macro_regime.py)
+    "cfnai_ma3": "CFNAIMA3",               # Chicago Fed National Activity Index, 3-month average
+    "sahm_realtime": "SAHMREALTIME",       # real-time Sahm rule recession indicator, pp
+    "recession_prob_cp": "RECPROUSM156N",  # Chauvet-Piger smoothed recession probability, %
+    "term_spread_10y3m": "T10Y3M",         # 10-year minus 3-month Treasury spread, daily, %
 }
 
 MANUAL_INPUTS_PATH: Path = Path("data/manual_inputs.xlsx")
@@ -415,6 +420,11 @@ def build_free_pipeline_data(
         "fed_funds_3m_change": fed_funds.diff(3),
         "financial_conditions_index": fci,
         "financial_conditions_mom": fci.diff(),
+        "cfnai_ma3": _first_of_month_to_month_end(fred["cfnai_ma3"]),
+        "sahm_rule_realtime_pp": _first_of_month_to_month_end(fred["sahm_realtime"]),
+        # Published with a lag of a few months; the cleansing step carries the last value forward
+        "recession_prob_chauvet_piger": _first_of_month_to_month_end(fred["recession_prob_cp"]) / 100,
+        "term_spread_10y3m": _month_end_last(fred["term_spread_10y3m"]) / 100,
     }).sort_index()
     macro["real_gdp_growth_rev"] = macro["real_gdp_growth_rev"].ffill(limit=3)
     macro = macro.loc[pd.Timestamp(start_date):]

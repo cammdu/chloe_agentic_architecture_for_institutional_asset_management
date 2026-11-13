@@ -423,6 +423,10 @@ RAW_DATA_SCHEMAS:
       fed_funds_3m_change: "float64"        # 3M change; Task 20 Step 1
       financial_conditions_index: "float64" # FCI level; Task 20 Step 1
       financial_conditions_mom: "float64"   # FCI MoM change; Task 20 Step 1
+      cfnai_ma3: "float64"                  # Chicago Fed CFNAI 3-month avg (FRED CFNAIMA3); regime clock + recession vote
+      sahm_rule_realtime_pp: "float64"      # Real-time Sahm rule, pp (FRED SAHMREALTIME); recession vote
+      recession_prob_chauvet_piger: "float64" # Chauvet-Piger recession probability, 0-1 (FRED RECPROUSM156N); recession vote
+      term_spread_10y3m: "float64"          # 10y minus 3m Treasury, decimal (FRED T10Y3M); early warning only
     validation:
       monotonic_increasing: true
       no_duplicate_dates: true
@@ -1827,21 +1831,32 @@ PROMPT_TEMPLATES:
 
       TOOLS / PYTHON SCRIPT SLOTS (call in this order):
       - {PY_FETCH_MACRO_SNAPSHOT}            # fetch macro snapshot as-of {AS_OF_DATE}
-      - {PY_SCORE_GROWTH_DIMENSION}          # compute growth_score
-      - {PY_SCORE_INFLATION_DIMENSION}       # compute inflation_score
-      - {PY_SCORE_POLICY_DIMENSION}          # compute monetary_policy_score
-      - {PY_SCORE_FINANCIAL_CONDITIONS_DIMENSION} # compute financial_conditions_score
-      - {PY_CLASSIFY_REGIME}                 # map scores → regime + confidence
+      - {PY_CLASSIFY_REGIME}                 # regime from published Fed indicators
       - {PY_WRITE_MACRO_VIEW_JSON}           # persist macro-view.json
       - {PY_WRITE_ANALYSIS_MD}               # persist analysis.md
 
+      HOW THE REGIME IS SET (deterministic; you explain it, you do not choose it):
+      - Recession when at least 2 of 3 published indicators fire: Chicago Fed
+        CFNAI-MA3 <= -0.70, real-time Sahm rule >= 0.50pp, Chauvet-Piger
+        recession probability >= 50%.
+      - Otherwise the CFNAI-MA3 business-cycle clock: above trend and rising =
+        Expansion; above and falling = Late-cycle; below and rising = Recovery;
+        below and falling = Late-cycle.
+      - The 10y-3m yield curve is an early warning only.
+      - The scores s_pi, s_pol, s_fc describe inflation, policy and financial
+        conditions; they do not change the regime.
+
       WORKFLOW (execute strictly in this order):
       1) Call {PY_FETCH_MACRO_SNAPSHOT} and load the returned snapshot.
-      2) Call {PY_SCORE_GROWTH_DIMENSION}, {PY_SCORE_INFLATION_DIMENSION},
-         {PY_SCORE_POLICY_DIMENSION}, {PY_SCORE_FINANCIAL_CONDITIONS_DIMENSION}.
-      3) Call {PY_CLASSIFY_REGIME} with the four scores.
-      4) Call {PY_WRITE_MACRO_VIEW_JSON} with regime, scores, confidence, rationale.
-      5) Call {PY_WRITE_ANALYSIS_MD} with regime and full rationale.
+      2) Call {PY_CLASSIFY_REGIME} (no arguments). It returns regime,
+         confidence, regime_probabilities, scores, indicators and rationale.
+      3) Call {PY_WRITE_MACRO_VIEW_JSON} with exactly that regime, scores,
+         confidence and rationale (the tool records the probabilities and
+         indicators itself).
+      4) Call {PY_WRITE_ANALYSIS_MD} with the regime and a full rationale:
+         which indicators fired, where CFNAI-MA3 sits on the clock, the yield
+         curve warning, and what inflation, policy and financial conditions
+         imply for asset classes.
 
       OUTPUT CONTRACT (must emit all files before terminating):
       - macro-view.json: {MACRO_VIEW_OUTPUT_PATH}
@@ -2617,6 +2632,36 @@ METHODOLOGY_PARAMS:
     - "Inflation"
     - "Monetary Policy"
     - "Financial Conditions"
+  # Regime model (agent_macro_regime.py). The regime is set by three indicators
+  # that Fed researchers estimate and publish, using the publishers' own
+  # thresholds, instead of by the hand-set weights and thresholds below:
+  #   1. Recession when at least min_votes of: CFNAI-MA3 <= -0.70 (Chicago Fed
+  #      rule of thumb), real-time Sahm rule >= 0.50pp, Chauvet-Piger
+  #      probability >= 50%.
+  #   2. Otherwise a business-cycle clock on CFNAI-MA3 (0 = trend growth):
+  #      above trend and rising = Expansion; above and falling = Late-cycle;
+  #      below and rising = Recovery; below and falling = Late-cycle.
+  #   P(Recession) = share of available indicators firing; the rest goes to the
+  #   clock phase. The 10y-3m curve is reported as an early warning, no vote.
+  MACRO_REGIME_MODEL:
+    method: "published_indicators"
+    growth_clock:
+      indicator: "cfnai_ma3"
+      trend_level: 0.0
+      direction_lookback_months: 3
+    recession_vote:
+      min_votes: 2
+      cfnai_ma3_at_or_below: -0.70
+      sahm_at_or_above: 0.50
+      chauvet_piger_at_or_above: 0.50
+    early_warning:
+      term_spread_inverted_below: 0.0
+      lookback_months: 12
+    max_staleness_months: 4
+    zscore_min_periods: 24
+  # The scoring weights below now only feed the descriptive s_pi, s_pol and s_fc
+  # scores (expanding-window z-scores); s_g is CFNAI-MA3. The growth weights and
+  # MACRO_REGIME_THRESHOLDS are kept for reference but no longer set the regime.
   # UNSPECIFIED IN MANUSCRIPT — frozen as implementation placeholders:
   MACRO_SCORING_WEIGHTS:
     growth:
