@@ -2638,7 +2638,8 @@ METHODOLOGY_PARAMS:
   #   1. Recession when at least min_votes of: CFNAI-MA3 <= -0.70 (Chicago Fed
   #      rule of thumb), real-time Sahm rule >= 0.50pp, Chauvet-Piger
   #      probability >= 50%.
-  #   2. Otherwise a business-cycle clock on CFNAI-MA3 (0 = trend growth):
+  #   2. Otherwise a business-cycle clock on CFNAI-MA3 (0 = trend growth,
+  #      direction over 6 months, a new phase confirmed after 2 months):
   #      above trend and rising = Expansion; above and falling = Late-cycle;
   #      below and rising = Recovery; below and falling = Late-cycle.
   #   P(Recession) = share of available indicators firing; the rest goes to the
@@ -2648,7 +2649,8 @@ METHODOLOGY_PARAMS:
     growth_clock:
       indicator: "cfnai_ma3"
       trend_level: 0.0
-      direction_lookback_months: 3
+      direction_lookback_months: 6   # direction = change in CFNAI-MA3 over this many months
+      confirm_months: 2              # a new clock phase must hold this long to replace the current one (Recession is never delayed)
     recession_vote:
       min_votes: 2
       cfnai_ma3_at_or_below: -0.70

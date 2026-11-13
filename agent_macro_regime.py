@@ -25,7 +25,8 @@
 #        CFNAI-MA3 <= -0.70, Sahm >= 0.50pp, Chauvet-Piger >= 0.50.
 #      Two or more firing -> Recession.
 #   2. Otherwise a business-cycle clock on CFNAI-MA3, level versus trend (0)
-#      and direction over the last 3 months:
+#      and direction over the last 6 months, where a new phase must hold for
+#      2 consecutive months before it replaces the current one:
 #        above trend, rising   -> Expansion
 #        above trend, falling  -> Late-cycle
 #        below trend, rising   -> Recovery
@@ -66,7 +67,8 @@ DEFAULT_MODEL_PARAMS: Dict[str, Any] = {
     "growth_clock": {
         "indicator": "cfnai_ma3",
         "trend_level": 0.0,
-        "direction_lookback_months": 3,
+        "direction_lookback_months": 6,
+        "confirm_months": 2,
     },
     "recession_vote": {
         "min_votes": 2,
@@ -169,10 +171,11 @@ def compute_regime_frame(
     trend = float(clock["trend_level"])
     above = level >= trend
     rising = change >= 0
-    phase = pd.Series(np.where(above, np.where(rising, "Expansion", "Late-cycle"),
-                               np.where(rising, "Recovery", "Late-cycle")), index=df.index, dtype=object)
+    clock_reading = pd.Series(np.where(above, np.where(rising, "Expansion", "Late-cycle"),
+                                       np.where(rising, "Recovery", "Late-cycle")), index=df.index, dtype=object)
     is_recession = n_votes >= min_votes
     valid = (n_available >= min_votes) & level.notna() & change.notna()
+    phase = _confirm_phases(clock_reading, valid, is_recession, int(clock.get("confirm_months", 1)))
     regime = phase.where(~is_recession, "Recession").where(valid)
 
     out = pd.DataFrame(index=df.index)
@@ -187,6 +190,7 @@ def compute_regime_frame(
         [out.at[t, f"p_{r}"] if isinstance(r, str) else np.nan for t, r in regime.items()],
         index=df.index, dtype=float,
     )
+    out["clock_reading"] = clock_reading.where(valid)
     out["cfnai_ma3"] = level
     out["cfnai_ma3_change"] = change
     out["sahm_rule_realtime_pp"] = sahm
@@ -204,6 +208,37 @@ def compute_regime_frame(
 
     scores = compute_dimension_scores(df, level, score_weights, int(p["zscore_min_periods"]))
     return out.join(scores)
+
+
+def _confirm_phases(reading: pd.Series, valid: pd.Series, is_recession: pd.Series, confirm_months: int) -> pd.Series:
+    """
+    Hold the current clock phase until a new reading persists for confirm_months
+    consecutive months (1 = no confirmation). Recession is never delayed, and the
+    first phase after a recession (or after a gap in the data) takes effect
+    immediately. Each month depends only on earlier months.
+    """
+    out = pd.Series(np.nan, index=reading.index, dtype=object)
+    current: Optional[str] = None
+    candidate: Optional[str] = None
+    streak = 0
+    for t in reading.index:
+        if not valid[t]:
+            current, candidate, streak = None, None, 0
+            continue
+        if is_recession[t]:
+            current, candidate, streak = "Recession", None, 0
+            out[t] = reading[t]          # unused: the regime is Recession this month
+            continue
+        new = reading[t]
+        if current in (None, "Recession") or new == current:
+            current, candidate, streak = new, None, 0
+        else:
+            streak = streak + 1 if new == candidate else 1
+            candidate = new
+            if streak >= confirm_months:
+                current, candidate, streak = new, None, 0
+        out[t] = current
+    return out
 
 
 def compute_dimension_scores(
@@ -289,6 +324,7 @@ def classify_regime_published(
     indicators = {
         "cfnai_ma3": _num(row["cfnai_ma3"]),
         "cfnai_ma3_change": _num(row["cfnai_ma3_change"]),
+        "clock_reading": row["clock_reading"] if isinstance(row["clock_reading"], str) else None,
         "sahm_rule_realtime_pp": _num(row["sahm_rule_realtime_pp"]),
         "recession_prob_chauvet_piger": _num(row["recession_prob_chauvet_piger"]),
         "term_spread_10y3m": _num(row["term_spread_10y3m"]),
@@ -334,6 +370,10 @@ def _rationale(row: pd.Series, p: Dict[str, Any]) -> str:
         head = f"Recession: {votes} {clock_text}"
     else:
         head = f"{regime} from the business-cycle clock: {clock_text} {votes}"
+        reading = row.get("clock_reading")
+        if isinstance(reading, str) and reading != regime:
+            head += (f" The clock now reads {reading}; it becomes the regime once it holds for "
+                     f"{clock.get('confirm_months', 1)} consecutive months.")
     if pd.notna(row["term_spread_10y3m"]):
         months = int(row["months_inverted_last_12"]) if pd.notna(row["months_inverted_last_12"]) else 0
         curve = (f" Early warning: the 10y-3m curve is inverted at {row['term_spread_10y3m']:.2%}."

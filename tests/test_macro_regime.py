@@ -57,6 +57,31 @@ def test_clock_phases():
     assert compute_regime_frame(falling_below)["regime"].iloc[-1] == "Late-cycle"
 
 
+def test_confirmation_holds_phase_until_it_persists():
+    flat = np.zeros(14)
+    # Above trend: rising for 10 months, then one falling month, then rising again
+    level = np.concatenate([np.linspace(0.1, 1.0, 10), [0.2], np.linspace(1.1, 1.4, 3)])
+    frame = compute_regime_frame(_macro(level, flat, flat), params={"growth_clock": {"direction_lookback_months": 1}})
+    assert frame["clock_reading"].iloc[10] == "Late-cycle"
+    assert frame["regime"].iloc[10] == "Expansion"            # one month is not enough
+    # Two falling months in a row do switch
+    level2 = np.concatenate([np.linspace(0.1, 1.0, 10), [0.8, 0.6]])
+    frame2 = compute_regime_frame(_macro(level2, flat[:12], flat[:12]), params={"growth_clock": {"direction_lookback_months": 1}})
+    assert list(frame2["regime"].iloc[-2:]) == ["Expansion", "Late-cycle"]
+    # confirm_months=1 switches at once
+    frame3 = compute_regime_frame(_macro(level, flat, flat),
+                                  params={"growth_clock": {"direction_lookback_months": 1, "confirm_months": 1}})
+    assert frame3["regime"].iloc[10] == "Late-cycle"
+
+
+def test_recession_is_not_delayed():
+    n = 12
+    sahm = np.r_[np.zeros(n - 1), 0.9]
+    cp = np.r_[np.zeros(n - 1), 0.9]
+    frame = compute_regime_frame(_macro(np.linspace(0.1, 1.0, n), sahm, cp))
+    assert frame["regime"].iloc[-1] == "Recession"
+
+
 def test_recession_needs_two_of_three():
     n = 10
     one = _macro(np.full(n, 0.2), np.full(n, 0.9), np.full(n, 0.1))      # only Sahm fires
@@ -84,7 +109,7 @@ def test_probabilities_sum_to_one_and_confidence_matches():
 def test_full_cycle_sequence():
     hist = build_regime_history(_cycle())
     assert set(hist.unique()) == {"Late-cycle", "Recession", "Recovery", "Expansion"}
-    assert (hist.iloc[26:33] == "Recession").all()
+    assert (hist.loc["2002-03":"2002-09"] == "Recession").all()
     assert hist.iloc[-1] == "Expansion"
 
 
