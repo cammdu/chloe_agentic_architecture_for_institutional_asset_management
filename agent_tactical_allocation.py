@@ -70,6 +70,11 @@ class TAAInputs:
     rates: pd.DataFrame
     macro: pd.DataFrame
     categories: Dict[str, str]
+    # Optional external regime per month-end (e.g. from a dedicated regime
+    # identifier). Labels must match TAA_PARAMS.REGIME_TILTS keys. It must be
+    # point in time: the label at month t may only use data published by t.
+    # When None, classify_regimes() derives it from the macro data.
+    regimes: Optional[pd.Series] = None
 
     @property
     def assets(self) -> List[str]:
@@ -357,7 +362,13 @@ def compute_signals(inputs: TAAInputs, config: Mapping[str, Any]) -> Tuple[Dict[
     sp = dict(p["SIGNALS"])
     sp["fi_assumptions"] = config["METHODOLOGY_PARAMS"].get("FI_ASSUMPTIONS", {})
     cap = float(sp.get("zscore_cap", 3.0))
-    regimes = classify_regimes(inputs.macro, config, sp)
+    if inputs.regimes is not None:
+        regimes = inputs.regimes.reindex(inputs.returns.index, method="ffill").astype("object")
+        unknown = set(regimes.dropna()) - set(p["REGIME_TILTS"])
+        if unknown:
+            raise ValueError(f"External regimes {sorted(unknown)} have no entry in TAA_PARAMS.REGIME_TILTS.")
+    else:
+        regimes = classify_regimes(inputs.macro, config, sp)
     sigs = {
         "momentum": momentum_signal(inputs.returns, sp),
         "value": value_signal(inputs, sp),

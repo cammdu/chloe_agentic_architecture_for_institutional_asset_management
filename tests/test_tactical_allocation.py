@@ -175,3 +175,18 @@ def test_build_inputs_from_pipeline_frames(config):
     assert list(out.returns.columns) == taa.canonical_asset_order(config)
     assert len(out.returns) == 29
     assert out.returns.notna().all().all()
+
+
+def test_external_regimes_are_used(inputs, config):
+    """A regime series from another module replaces the built-in classifier."""
+    ext = pd.Series("Recession", index=inputs.returns.index)
+    plugged = taa.TAAInputs(returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates,
+                            macro=inputs.macro, categories=inputs.categories, regimes=ext)
+    sig, reg = taa.compute_signals(plugged, config)
+    assert (reg == "Recession").all()
+    assert sig["regime"]["Long-Term Treasuries"].iloc[-1] == pytest.approx(1.0)
+    bad = taa.TAAInputs(returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates,
+                        macro=inputs.macro, categories=inputs.categories,
+                        regimes=pd.Series("Stagflation", index=inputs.returns.index))
+    with pytest.raises(ValueError):
+        taa.compute_signals(bad, config)
