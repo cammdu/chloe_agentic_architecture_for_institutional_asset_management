@@ -2948,3 +2948,157 @@ META_LEARNING:
     - "agent_prompts"
     - "python_code"
   change_log_format: "structured_json_with_diffs"
+# ==============================================================================
+# 9. TACTICAL ASSET ALLOCATION (TAA) LAYER
+# ==============================================================================
+# Used by agent_tactical_allocation.py. The SAA pipeline above sets the long-run
+# policy portfolio; this layer tilts around it over a short horizon from
+# momentum, value, carry and macro-regime signals, within bands, a tracking-error
+# budget versus the policy portfolio, a turnover cap and trading costs.
+# Every number below is an implementation choice (none is in the manuscript).
+# ==============================================================================
+TAA_PARAMS:
+  # Holding horizon of a tactical view, in months. The optimizer weighs the
+  # expected gain over this horizon against the one-off cost of trading.
+  HORIZON_MONTHS: 3
+  REBALANCE_FREQUENCY: "M"
+
+  # Strategic anchor. "config": POLICY_WEIGHTS below. "saa_run": the SAA
+  # pipeline's final_weights.json at POLICY_WEIGHTS_PATH (falls back to config).
+  POLICY_SOURCE: "config"
+  POLICY_WEIGHTS_PATH: null
+  # Placeholder policy mix: 55% equity, 35% fixed income, 8% real assets, 2% cash.
+  POLICY_WEIGHTS:
+    US Large Cap: 0.25
+    US Small Cap: 0.04
+    US Value: 0.03
+    US Growth: 0.03
+    International Developed: 0.13
+    Emerging Markets: 0.07
+    Short-Term Treasuries: 0.03
+    Intermediate Treasuries: 0.10
+    Long-Term Treasuries: 0.04
+    Investment-Grade Corporates: 0.07
+    High-Yield Corporates: 0.03
+    International Sovereign Bonds: 0.03
+    International Corporates: 0.02
+    USD Emerging Market Debt: 0.03
+    REITs: 0.03
+    Gold: 0.03
+    Commodities: 0.02
+    Cash: 0.02
+
+  # Deviation bands around the policy weights (decimals of the portfolio)
+  BANDS:
+    per_asset: 0.05
+    per_asset_overrides: {}
+    per_category:
+      Equity: 0.10
+      Fixed Income: 0.10
+      Real Assets: 0.05
+      Cash: 0.05
+    # Keep each tactical weight under IPS max_weight_per_asset (or the policy
+    # weight, if that is already higher)
+    respect_ips_max_weight: true
+
+  RISK:
+    # Ex-ante tracking error versus the policy portfolio
+    tracking_error_budget: 0.02
+    # Penalty on active variance in the objective; the TE budget is the hard limit.
+    # Lower values tilt harder until the bands or the TE budget bind.
+    risk_aversion: 4.0
+    # Assumed skill of the composite signal (correlation of forecast and outcome).
+    # Grinold rule: alpha_i = IC * vol_i * z_i. 0.05 is a sober, realistic value.
+    information_coefficient: 0.05
+    cov_window_months: 60
+    min_history_months: 60
+
+  TURNOVER:
+    # One-way turnover allowed at each rebalance (lifted only if infeasible)
+    max_one_way_per_rebalance: 0.20
+
+  # One-way trading cost per asset in basis points (ETF spread plus impact)
+  TRANSACTION_COSTS_BPS:
+    default: 10
+    US Large Cap: 3
+    US Small Cap: 8
+    US Value: 5
+    US Growth: 5
+    International Developed: 6
+    Emerging Markets: 12
+    Short-Term Treasuries: 2
+    Intermediate Treasuries: 2
+    Long-Term Treasuries: 3
+    Investment-Grade Corporates: 6
+    High-Yield Corporates: 15
+    International Sovereign Bonds: 10
+    International Corporates: 15
+    USD Emerging Market Debt: 15
+    REITs: 8
+    Gold: 5
+    Commodities: 12
+    Cash: 1
+
+  # Weight of each signal family in the composite score
+  SIGNAL_WEIGHTS:
+    momentum: 0.35
+    value: 0.25
+    carry: 0.20
+    regime: 0.20
+
+  SIGNALS:
+    lookback_months: 12
+    skip_months: 1
+    fast_lookback_months: 3
+    vol_window_months: 36
+    time_series_weight: 0.5
+    min_history_months: 60
+    zscore_cap: 3.0
+    macro_publication_lag_months: 1
+    regime_persistence_months: 2
+    regime_min_history_months: 36
+
+  # Business-cycle priors: tilt score (z units, -1 to +1) per regime. Assets not
+  # listed get 0. Regimes come from the same rules as Task 20 (point in time).
+  REGIME_TILTS:
+    Expansion:
+      US Small Cap: 0.75
+      Emerging Markets: 0.75
+      US Growth: 0.5
+      International Developed: 0.5
+      High-Yield Corporates: 0.5
+      Commodities: 0.25
+      Long-Term Treasuries: -0.5
+      Gold: -0.25
+      Cash: -0.5
+    Late-cycle:
+      US Value: 0.25
+      US Growth: -0.25
+      US Small Cap: -0.5
+      Emerging Markets: -0.25
+      High-Yield Corporates: -0.5
+      Short-Term Treasuries: 0.5
+      Long-Term Treasuries: -0.25
+      Commodities: 0.5
+      Gold: 0.5
+      Cash: 0.25
+    Recession:
+      US Large Cap: -0.5
+      US Small Cap: -0.75
+      International Developed: -0.5
+      Emerging Markets: -0.75
+      High-Yield Corporates: -0.75
+      USD Emerging Market Debt: -0.5
+      Intermediate Treasuries: 0.75
+      Long-Term Treasuries: 1.0
+      Gold: 0.5
+      Commodities: -0.75
+      Cash: 0.5
+    Recovery:
+      US Small Cap: 1.0
+      US Value: 0.5
+      Emerging Markets: 0.75
+      High-Yield Corporates: 0.75
+      REITs: 0.5
+      Long-Term Treasuries: -0.25
+      Cash: -0.5
