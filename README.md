@@ -44,6 +44,7 @@ The project provides a complete, end-to-end computational framework for operatio
 - [Features](#features)
 - [Methodology Implemented](#methodology-implemented)
 - [Core Components (Notebook Structure)](#core-components-notebook-structure)
+- [Tactical Asset Allocation Layer](#tactical-asset-allocation-layer)
 - [Key Callable: `orchestrate_fiduciary_intelligence_cycle`](#key-callable-orchestrate_fiduciary_intelligence_cycle)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -125,6 +126,21 @@ The core analytical steps directly implement the workflow from the source paper:
 ## Core Components (Notebook Structure)
 
 The notebook is structured as a logical pipeline with modular orchestrator functions for each of the 37 major tasks. All functions are self-contained, fully documented with strict type hints and comprehensive docstrings, and designed for professional-grade execution.
+
+## Tactical Asset Allocation Layer
+
+The paper's pipeline is a **strategic** asset allocation (SAA) process: it builds a long-run policy portfolio from 3-year capital market assumptions. `agent_tactical_allocation.py` adds a **tactical** (TAA) layer on top that leans away from that policy portfolio over a 1 to 12 month horizon, and only when the lean is worth its trading cost.
+
+| | SAA (Tasks 1-37) | TAA layer |
+|---|---|---|
+| Question | What long-run mix fits the IPS? | How far to lean from that mix now? |
+| Horizon | 3-year CMAs, 120-month covariance | 3-month holding horizon, 60-month covariance |
+| Return inputs | Equilibrium, valuation, survey CMAs | Momentum, value, carry and macro-regime z-scores, turned into small forecasts with Grinold's rule (alpha = IC x vol x z) |
+| Construction | 21 optimizers build full portfolios | One cost-aware optimizer tilts around the policy weights within per-asset and per-category bands and a tracking-error budget versus policy |
+| Costs and turnover | Not modelled | Per-asset trading costs and a turnover cap |
+| Evaluation | Final weights applied to past returns | Monthly walk-forward backtest, point in time, net of costs, scored on active return, information ratio, hit rate and turnover, with each signal run on its own |
+
+The policy portfolio comes from `TAA_PARAMS.POLICY_WEIGHTS` in `config.yaml`, or from an SAA run's `final_weights.json`. Every setting (bands, tracking-error budget, costs, signal weights, regime tilts) lives under `TAA_PARAMS`. The notebook's **Tactical Asset Allocation** section runs the whole layer for free (no API calls) and writes `taa_recommendation.json`, `taa_backtest.json` and `taa_report.md` to `run_outputs/taa/`. Tests: `pytest tests/test_tactical_allocation.py`.
 
 ## Key Callable: `orchestrate_fiduciary_intelligence_cycle`
 
@@ -261,6 +277,8 @@ agentic_architecture_for_institutional_asset_management/
 ├── agent_llm_infrastructure.py                                          # Secure LLM interaction, configuration, and response parsing
 ├── agent_registry_and_skills_payload_creation.py                        # Agent operational boundaries and skills registry serialization
 ├── agent_tools.py                                                       # 70+ deterministic Python callables (computational substrate)
+├── agent_tactical_allocation.py                                         # Tactical layer: signals, cost-aware tilts, walk-forward backtest
+├── tests/test_tactical_allocation.py                                    # Tests for the tactical layer
 ├── config.yaml                                                          # Master configuration file (IPS and methodological parameters)
 ├── requirements.txt                                                     # Python package dependencies
 │
