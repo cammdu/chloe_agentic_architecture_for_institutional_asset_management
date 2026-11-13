@@ -377,12 +377,20 @@ def regime_probability_signal(
     return out.where(total > 0)
 
 
-def regime_inputs_from_frame(inputs: TAAInputs, frame: pd.DataFrame) -> TAAInputs:
-    """Attach a regime frame (columns regime and p_<regime>) to TAAInputs."""
+def regime_inputs_from_frame(inputs: TAAInputs, frame: pd.DataFrame, publication_lag_months: int = 1) -> TAAInputs:
+    """Attach a regime frame (columns regime and p_<regime>) to TAAInputs.
+
+    Macro data dated month t is published weeks later (CFNAI about three weeks
+    after month end), so each row is shifted forward by publication_lag_months
+    before the backtest may trade on it.
+    """
     idx = inputs.returns.index
     f = frame.copy()
     f.index = pd.DatetimeIndex(f.index) + pd.offsets.MonthEnd(0)
-    f = f.groupby(level=0).last().reindex(idx, method="ffill")
+    f = f.groupby(level=0).last()
+    if publication_lag_months:
+        f.index = f.index + pd.offsets.MonthEnd(int(publication_lag_months))
+    f = f.reindex(idx, method="ffill")
     prob_cols = [c for c in f.columns if isinstance(c, str) and c.startswith("p_")]
     return TAAInputs(
         returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates, macro=inputs.macro,

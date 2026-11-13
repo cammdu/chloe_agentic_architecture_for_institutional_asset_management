@@ -183,7 +183,7 @@ def test_external_regimes_are_used(inputs, config):
     plugged = taa.TAAInputs(returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates,
                             macro=inputs.macro, categories=inputs.categories, regimes=ext)
     sig, reg = taa.compute_signals(plugged, config)
-    assert (reg == "Recession").all()
+    assert (reg.iloc[1:] == "Recession").all()
     assert sig["regime"]["Long-Term Treasuries"].iloc[-1] == pytest.approx(1.0)
     bad = taa.TAAInputs(returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates,
                         macro=inputs.macro, categories=inputs.categories,
@@ -198,9 +198,10 @@ def test_regime_probabilities_blend_tilts(inputs, config):
     frame = pd.DataFrame({"regime": "Recession", "p_Expansion": 0.5, "p_Late-cycle": 0.0,
                           "p_Recession": 0.5, "p_Recovery": 0.0}, index=idx)
     plugged = taa.regime_inputs_from_frame(inputs, frame)
+    assert plugged.regime_probabilities.iloc[0].isna().all()  # first month not yet published
     sig, reg = taa.compute_signals(plugged, config)
     tilts = config["TAA_PARAMS"]["REGIME_TILTS"]
     for a in ("Long-Term Treasuries", "US Small Cap", "REITs"):
         expected = 0.5 * tilts["Expansion"].get(a, 0.0) + 0.5 * tilts["Recession"].get(a, 0.0)
         assert sig["regime"][a].iloc[-1] == pytest.approx(expected)
-    assert (reg == "Recession").all()
+    assert (reg.iloc[1:] == "Recession").all()
