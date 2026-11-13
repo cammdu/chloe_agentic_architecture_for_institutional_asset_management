@@ -75,6 +75,12 @@ class TAAInputs:
     # point in time: the label at month t may only use data published by t.
     # When None, classify_regimes() derives it from the macro data.
     regimes: Optional[pd.Series] = None
+    # Optional regime probabilities per month-end, one column per regime (named
+    # "Recession" or "p_Recession", etc.), e.g. the frame returned by
+    # agent_macro_regime.compute_regime_frame. When given, the regime signal is
+    # the probability-weighted average of the tilts, which moves smoothly as the
+    # odds shift instead of jumping when the label flips.
+    regime_probabilities: Optional[pd.DataFrame] = None
 
     @property
     def assets(self) -> List[str]:
@@ -356,13 +362,47 @@ def regime_signal(regimes: pd.Series, assets: Sequence[str], tilt_map: Mapping[s
     return out
 
 
+def regime_probability_signal(
+    probabilities: pd.DataFrame, assets: Sequence[str], tilt_map: Mapping[str, Mapping[str, float]]
+) -> pd.DataFrame:
+    """Expected tilt under the regime odds: sum over regimes of P(regime) * tilt."""
+    probs = probabilities.rename(columns=lambda c: c[2:] if isinstance(c, str) and c.startswith("p_") else c)
+    probs = probs[[r for r in tilt_map if r in probs.columns]].astype(float)
+    if probs.empty:
+        raise ValueError(f"regime_probabilities has no columns for the regimes {sorted(tilt_map)}.")
+    tilt = pd.DataFrame({r: pd.Series(tilt_map[r], dtype=float) for r in probs.columns}).reindex(list(assets)).fillna(0.0)
+    total = probs.sum(axis=1)
+    probs = probs.div(total.where(total > 0), axis=0)
+    out = probs.fillna(0.0) @ tilt.T
+    return out.where(total > 0)
+
+
+def regime_inputs_from_frame(inputs: TAAInputs, frame: pd.DataFrame) -> TAAInputs:
+    """Attach a regime frame (columns regime and p_<regime>) to TAAInputs."""
+    idx = inputs.returns.index
+    f = frame.copy()
+    f.index = pd.DatetimeIndex(f.index) + pd.offsets.MonthEnd(0)
+    f = f.groupby(level=0).last().reindex(idx, method="ffill")
+    prob_cols = [c for c in f.columns if isinstance(c, str) and c.startswith("p_")]
+    return TAAInputs(
+        returns=inputs.returns, fundamentals=inputs.fundamentals, rates=inputs.rates, macro=inputs.macro,
+        categories=inputs.categories,
+        regimes=f["regime"] if "regime" in f.columns else None,
+        regime_probabilities=f[prob_cols] if prob_cols else None,
+    )
+
+
 def compute_signals(inputs: TAAInputs, config: Mapping[str, Any]) -> Tuple[Dict[str, pd.DataFrame], pd.Series]:
     """All signal families as clipped z-score panels, plus the regime series."""
     p = config["TAA_PARAMS"]
     sp = dict(p["SIGNALS"])
     sp["fi_assumptions"] = config["METHODOLOGY_PARAMS"].get("FI_ASSUMPTIONS", {})
     cap = float(sp.get("zscore_cap", 3.0))
-    if inputs.regimes is not None:
+    if inputs.regimes is None and inputs.regime_probabilities is not None:
+        probs = inputs.regime_probabilities.rename(columns=lambda c: c[2:] if str(c).startswith("p_") else c)
+        regimes = probs.reindex(inputs.returns.index, method="ffill").astype(float).idxmax(axis=1, skipna=True)
+        regimes = regimes.where(probs.reindex(inputs.returns.index, method="ffill").notna().any(axis=1)).astype("object")
+    elif inputs.regimes is not None:
         regimes = inputs.regimes.reindex(inputs.returns.index, method="ffill").astype("object")
         unknown = set(regimes.dropna()) - set(p["REGIME_TILTS"])
         if unknown:
@@ -373,7 +413,10 @@ def compute_signals(inputs: TAAInputs, config: Mapping[str, Any]) -> Tuple[Dict[
         "momentum": momentum_signal(inputs.returns, sp),
         "value": value_signal(inputs, sp),
         "carry": carry_signal(inputs, sp),
-        "regime": regime_signal(regimes, inputs.assets, p["REGIME_TILTS"]),
+        "regime": (regime_probability_signal(inputs.regime_probabilities.reindex(inputs.returns.index, method="ffill"),
+                                             inputs.assets, p["REGIME_TILTS"])
+                   if inputs.regime_probabilities is not None
+                   else regime_signal(regimes, inputs.assets, p["REGIME_TILTS"])),
     }
     return {k: _clip(v, cap) for k, v in sigs.items()}, regimes
 

@@ -190,3 +190,17 @@ def test_external_regimes_are_used(inputs, config):
                         regimes=pd.Series("Stagflation", index=inputs.returns.index))
     with pytest.raises(ValueError):
         taa.compute_signals(bad, config)
+
+
+def test_regime_probabilities_blend_tilts(inputs, config):
+    """With 50/50 odds the regime signal is the average of the two regimes' tilts."""
+    idx = inputs.returns.index
+    frame = pd.DataFrame({"regime": "Recession", "p_Expansion": 0.5, "p_Late-cycle": 0.0,
+                          "p_Recession": 0.5, "p_Recovery": 0.0}, index=idx)
+    plugged = taa.regime_inputs_from_frame(inputs, frame)
+    sig, reg = taa.compute_signals(plugged, config)
+    tilts = config["TAA_PARAMS"]["REGIME_TILTS"]
+    for a in ("Long-Term Treasuries", "US Small Cap", "REITs"):
+        expected = 0.5 * tilts["Expansion"].get(a, 0.0) + 0.5 * tilts["Recession"].get(a, 0.0)
+        assert sig["regime"][a].iloc[-1] == pytest.approx(expected)
+    assert (reg == "Recession").all()
